@@ -1,0 +1,39 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Parent Stack
+
+Resources:
+  MyVpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://nouman-learning.s3.amazonaws.com/NoumanVPC.yaml    # required
+      TimeoutInMinutes: '20'
+
+  ALBStack:
+
+    Type: AWS::CloudFormation::Stack
+    DependsOn: MyVpcStack
+    Properties:
+      TemplateURL: https://nouman-learning.s3.amazonaws.com/AppLoadBalancer.yaml   # required
+      TimeoutInMinutes: '20'
+      Parameters:
+          VpcID: !GetAtt MyVpcStack.Outputs.VpcN
+          PublicSubnet1: !GetAtt MyVpcStack.Outputs.PUBSUB01r
+          PublicSubnet2: !GetAtt MyVpcStack.Outputs.PUBSUB02r
+          ECSSG: !GetAtt MyVpcStack.Outputs.ECSSGr
+          ALBSG: !GetAtt MyVpcStack.Outputs.ALBSGr
+
+  ECSStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ALBStack
+    Properties:
+      TemplateURL: https://nouman-learning.s3.amazonaws.com/ECS-Resources.yaml   # required
+      TimeoutInMinutes: '5'
+      Parameters:
+          # InstaceTypeParam: !Ref "InstaceTypeParam"
+          EcsSecurityGroup: !GetAtt MyVpcStack.Outputs.ECSSGr
+          PrivateSubnet1: !GetAtt MyVpcStack.Outputs.PVSUB01r
+          PrivateSubnet2: !GetAtt MyVpcStack.Outputs.PVSUB02r
+          TargetGroup:  !GetAtt ALBStack.Outputs.TargetGroup
