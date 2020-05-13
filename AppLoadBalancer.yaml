@@ -1,0 +1,80 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  ALB resources for ECS Cluster
+
+Parameters:
+
+  VpcID:
+    Description: Please enter the IP range     # optional
+    Type: String     # required
+
+  PublicSubnet1:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
+  PublicSubnet2:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
+  ECSSG:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
+  ALBSG:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
+Resources:
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: 60
+      IpAddressType: ipv4     # optional
+      #LoadBalancerAttributes:                # optional, list of LoadBalancerAttribute
+      #  - LoadBalancerAttribute
+      #Name: ALB     # optional
+      Scheme: internet-facing     # optional
+      SecurityGroups:
+        -  Ref: ALBSG             # optional, list of String
+      Subnets:                # optional, list of String
+        -  Ref: PublicSubnet1
+        -  Ref: PublicSubnet2
+      Tags:                # optional, list of Tag
+        - Key: Name     # optional
+          Value: ALB     # optional
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:                # required, list of Action
+        - Type:  forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref ALB     # required
+      Port: 80     # required
+      Protocol: HTTP     # required
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 100
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 70
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      HealthCheckPath: /
+      Name: TargetGroup     # optional
+      Port: 80     # required
+      Protocol: HTTP     # required
+      Tags:                # optional, list of Tag
+        - Key: Name     # optional
+          Value: TargetGroup     # optional
+      TargetType: ip
+      VpcId: !Ref VpcID      # required
+
+Outputs:
+  TargetGroup:
+    Value: !Ref "TargetGroup"
