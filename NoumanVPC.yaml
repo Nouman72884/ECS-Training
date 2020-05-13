@@ -1,0 +1,236 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Networking resources for ECS cluster
+
+Parameters:
+  VpcCIDR:
+    Description: Please enter the IP range     # optional
+    Type: String     # required
+    Default: 10.1.0.0/16
+
+  PublicSubnet1CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.1.0/24
+
+  PublicSubnet2CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.2.0/24
+
+
+  PrivateSubnet1CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.3.0/24
+
+
+  PrivateSubnet2CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.4.0/24
+
+  DesiredCapacity:
+    Type: Number
+    Default: '1'
+    Description: Number of instances to launch in your ECS cluster.
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR     # required
+      InstanceTenancy: default      # optional
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC     # required
+      AvailabilityZone:  !Select [ 0, !GetAZs '' ]     # optional
+      CidrBlock: !Ref PublicSubnet1CIDR     # required
+      MapPublicIpOnLaunch: true     # optional
+      Tags:                # optional, list of Tag
+        - Key: Name     # optional
+          Value: PublicSubnet1     # optional
+
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC     # required
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]     # optional
+      CidrBlock: !Ref PublicSubnet2CIDR     # required
+      MapPublicIpOnLaunch: true     # optional
+      Tags:                # optional, list of Tag
+        - Key: Name     # optional
+          Value: PublicSubnet2     # optional
+
+
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC     # required
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]     # optional
+      CidrBlock: !Ref PrivateSubnet1CIDR    # required
+      Tags:                # optional, list of Tag
+        - Key: Name     # optional
+          Value: PrivateSubnet1     # optional
+
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC     # required
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]     # optional
+      CidrBlock: !Ref PrivateSubnet2CIDR    # required
+      Tags:                # optional, list of Tag
+        - Key: Name     # optional
+          Value: PrivateSubnet2     # optional
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:                # optional, list of Tag
+        - Key: Name     # optional
+          Value: InternetGateway     # optional
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway    # optional
+      VpcId: !Ref VPC     # required
+
+
+  NatGW:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGWEIP.AllocationId     # required
+      SubnetId: !Ref PublicSubnet1     # required
+
+
+  NatGWEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: VPC
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:                # optional, list of Tag
+        - Key: Name     # optional
+          Value: Public_Route_Table     # optional
+      VpcId: !Ref VPC      # required
+
+
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Private_Route_Table
+
+
+  DefaultPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGW
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet2
+
+  EcsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+       - IpProtocol: -1
+         FromPort: 0
+         ToPort: 65535
+         SourceSecurityGroupId: !GetAtt ALBSG.GroupId
+       - IpProtocol: -1
+         FromPort: 0
+         ToPort: 65535
+         CidrIp: 10.1.0.0/16
+      SecurityGroupEgress:
+       - IpProtocol: -1
+         FromPort: 0
+         ToPort: 65535
+         CidrIp: 0.0.0.0/0
+
+  ALBSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow All Traffic to Application Load Balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+       - IpProtocol: -1
+         FromPort: 0
+         ToPort: 65535
+         CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+       - IpProtocol: -1
+         FromPort: 0
+         ToPort: 65535
+         CidrIp: 0.0.0.0/0
+
+
+
+Outputs:
+  PUBSUB01r:
+    Value: !Ref "PublicSubnet1"
+
+  PUBSUB02r:
+    Value: !Ref "PublicSubnet2"
+
+  PVSUB01r:
+    Value: !Ref "PrivateSubnet1"
+
+  PVSUB02r:
+    Value: !Ref "PrivateSubnet2"
+
+  VpcN:
+    Value: !Ref "VPC"
+
+  ECSSGr:
+    Value: !Ref "EcsSecurityGroup"
+
+  ALBSGr:
+    Value: !Ref "ALBSG"
