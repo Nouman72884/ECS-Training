@@ -1,0 +1,219 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Main stack
+
+
+Parameters:
+  TemplateS3BucketVpcStack:
+    Description: The bucket url for VpcStack templates
+    Type: String
+
+
+  TemplateS3BucketALBStack:
+    Description: The bucket url for ALBStack templates
+    Type: String
+
+
+  TemplateS3BucketECSStack:
+    Description: The bucket url for ECSStack templates
+    Type: String
+
+
+  TemplateS3BucketTaskDefinitionStack:
+    Description: The bucket url for TaskDefinitionStack templates
+    Type: String
+
+
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    AllowedValues:
+      - dev
+      - test
+      - prod
+
+  VpcCIDR:
+    Description: Please enter the IP range     # optional
+    Type: String     # required
+    Default: 10.1.0.0/16
+
+  PublicSubnet1CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.1.0/24
+
+  PublicSubnet2CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.2.0/24
+
+  PrivateSubnet1CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.3.0/24
+
+  PrivateSubnet2CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.4.0/24
+
+  TargetType:
+    Description: Select a target type ip/instance for target groups
+    Type: String
+    AllowedValues:
+      - ip
+      - instance
+
+  TaskMemory:
+    Description: Please enter the IP range     # optional
+    Type: Number     # required
+
+  TaskCpu:
+    Description: Please enter the IP range     # optional
+    Type: Number     # required
+
+  # WebServerContainerMemory:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+  #
+  # DBServerContainerMemory:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+  #
+  # WebServerContainerCpu:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+  #
+  # DBServerContainerCpu:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+
+  ContainerNameWebServer:
+    Type: String
+    Description: The name for web server container
+
+  ContainerNameDBServer:
+    Type: String
+    Description: The name for db server container
+
+  ImageUrlWebServer:
+    Type: String
+    Description: The url of a docker image that contains the application
+
+  ImageUrlDBServer:
+    Type: String
+    Description: The url of a docker image that contains the application
+
+  ContainerPortWebServer:
+    Type: Number
+    Description: The port for web server container
+
+  ContainerPortDBServer:
+    Type: Number
+    Description: The port for db server container
+
+  WordpressDbHost:
+    Type: String
+    Description: Environment variable value for WORDPRESS_DB_HOST
+
+  WordpressDbUser:
+    Type: String
+    Description: Environment variable value for WORDPRESS_DB_USER
+
+  WordpressDbPassword:
+    Type: String
+    NoEcho: 'true'
+    Description: Environment variable value for WORDPRESS_DB_PASSWORD
+
+  WordpressDbName:
+    Type: String
+    Description: Environment variable value for WORDPRESS_DB_NAME
+
+  MysqlRootPassword:
+    Type: String
+    NoEcho: 'true'
+    Description: Environment variable value for MYSQL_ROOT_PASSWORD
+
+  MysqlDatabase:
+    Type: String
+    Description: Environment variable value for MYSQL_DATABASE
+
+  MysqlUser:
+    Type: String
+    Description: Environment variable value for MYSQL_USER
+
+  MysqlPassword:
+    Type: String
+    NoEcho: 'true'
+    Description: Environment variable value for MYSQL_PASSWORD
+
+
+Resources:
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Ref TemplateS3BucketVpcStack
+      TimeoutInMinutes: '20'
+      Parameters:
+          EnvironmentName: !Ref EnvironmentName
+          VpcCIDR: !Ref VpcCIDR
+          PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
+          PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
+          PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+          PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+
+  ALBStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: VpcStack
+    Properties:
+      TemplateURL: !Ref TemplateS3BucketALBStack
+      TimeoutInMinutes: '20'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        TargetType: !Ref TargetType
+        VpcID: !GetAtt VpcStack.Outputs.VpcID
+        PublicSubnet1: !GetAtt VpcStack.Outputs.PublicSubnet1r
+        PublicSubnet2: !GetAtt VpcStack.Outputs.PublicSubnet2r
+        EcsSecurityGroup: !GetAtt VpcStack.Outputs.EcsSecurityGroup
+        ALBSecurityGroup: !GetAtt VpcStack.Outputs.ALBSecurityGroup
+
+  ECSClusterStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ALBStack
+    Properties:
+      TemplateURL: !Ref TemplateS3BucketECSStack
+      TimeoutInMinutes: '5'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+
+  TaskDefinitionStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ECSClusterStack
+    Properties:
+      TemplateURL: !Ref TemplateS3BucketTaskDefinitionStack
+      TimeoutInMinutes: '5'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        TaskMemory: !Ref TaskMemory
+        TaskCpu: !Ref TaskCpu
+        ContainerNameWebServer: !Ref ContainerNameWebServer
+        ContainerNameDBServer: !Ref ContainerNameDBServer
+        ImageUrlWebServer: !Ref ImageUrlWebServer
+        ImageUrlDBServer: !Ref ImageUrlDBServer
+        ContainerPortWebServer: !Ref ContainerPortWebServer
+        ContainerPortDBServer: !Ref ContainerPortDBServer
+        WordpressDbHost: !Ref WordpressDbHost
+        WordpressDbUser: !Ref WordpressDbUser
+        WordpressDbPassword: !Ref WordpressDbPassword
+        WordpressDbName: !Ref WordpressDbName
+        MysqlRootPassword: !Ref MysqlRootPassword
+        MysqlDatabase: !Ref MysqlDatabase
+        MysqlUser: !Ref MysqlUser
+        MysqlPassword: !Ref MysqlPassword
+        ECSCluster: !GetAtt ECSClusterStack.Outputs.EcsCluster
+        EcsSecurityGroup: !GetAtt VpcStack.Outputs.EcsSecurityGroup
+        PrivateSubnet1: !GetAtt VpcStack.Outputs.PrivateSubnet1r
+        PrivateSubnet2: !GetAtt VpcStack.Outputs.PrivateSubnet2r
+        TargetGroup:  !GetAtt ALBStack.Outputs.TargetGroup
