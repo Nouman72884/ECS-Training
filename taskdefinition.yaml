@@ -1,0 +1,228 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Task definition for ECS Cluster
+
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    AllowedValues:
+      - dev
+      - test
+      - prod
+
+  PrivateSubnet1:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
+  PrivateSubnet2:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
+  TargetGroup:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
+  EcsSecurityGroup:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
+  ECSCluster:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
+  TaskMemory:
+    Description: enter memory for task     # optional
+    Type: Number     # required
+
+  TaskCpu:
+    Description: enter cpu for task     # optional
+    Type: Number     # required
+
+  # WebServerContainerMemory:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+  #
+  # DBServerContainerMemory:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+  #
+  # WebServerContainerCpu:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+  #
+  # DBServerContainerCpu:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+
+  ContainerNameWebServer:
+    Type: String
+    Description: The name for web server container
+
+  ContainerNameDBServer:
+    Type: String
+    Description: The name for db server container
+
+  ImageUrlWebServer:
+    Type: String
+    Description: The url of a docker image that contains the application
+
+  ImageUrlDBServer:
+    Type: String
+    Description: The url of a docker image that contains the application
+
+  ContainerPortWebServer:
+    Type: Number
+    Description: The port for web server container
+
+  ContainerPortDBServer:
+    Type: Number
+    Description: The port for db server container
+
+  WordpressDbHost:
+    Type: String
+    Description: Environment variable value for WORDPRESS_DB_HOST
+
+  WordpressDbUser:
+    Type: String
+    Description: Environment variable value for WORDPRESS_DB_USER
+
+  WordpressDbPassword:
+    Type: String
+    Description: Environment variable value for WORDPRESS_DB_PASSWORD
+
+  WordpressDbName:
+    Type: String
+    Description: Environment variable value for WORDPRESS_DB_NAME
+
+  MysqlRootPassword:
+    Type: String
+    Description: Environment variable value for MYSQL_ROOT_PASSWORD
+
+  MysqlDatabase:
+    Type: String
+    Description: Environment variable value for MYSQL_DATABASE
+
+  MysqlUser:
+    Type: String
+    Description: Environment variable value for MYSQL_USER
+
+  MysqlPassword:
+    Type: String
+    Description: Environment variable value for MYSQL_PASSWORD
+
+
+
+
+
+Resources:
+  ECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ECSRole
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+            - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+              - ecs.amazonaws.com
+              - ec2.amazonaws.com
+              - ecs-tasks.amazonaws.com
+              - application-autoscaling.amazonaws.com
+        Version: 2012-10-17
+      ManagedPolicyArns:
+        - arn:aws:iam::020046395185:policy/ECSFullAccessPolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+      Path: /
+
+
+  taskdefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+        - FARGATE
+      Family: !Sub ${EnvironmentName}-AppTask
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc     # optional
+      TaskRoleArn: !Ref ECSRole
+      ExecutionRoleArn: !Ref ECSRole
+      ContainerDefinitions:
+        - Name: !Ref ContainerNameWebServer
+          DependsOn:
+            -  Condition: START
+               ContainerName: !Ref ContainerNameDBServer
+          # Links:
+          #   - db
+          #Cpu: !Ref WebServerContainerCpu
+          Essential: 'true'
+          Image: !Ref ImageUrlWebServer
+          #Memory: !Ref WebServerContainerMemory
+          PortMappings:
+            -
+              ContainerPort: !Ref ContainerPortWebServer
+              #HostPort: 80
+              Protocol: tcp
+          Environment:
+            - Name: WORDPRESS_DB_HOST
+              Value: !Ref WordpressDbHost
+            - Name: WORDPRESS_DB_USER
+              Value: !Ref WordpressDbUser
+            - Name: WORDPRESS_DB_PASSWORD
+              Value: !Ref WordpressDbPassword
+            - Name: WORDPRESS_DB_NAME
+              Value: !Ref WordpressDbName
+
+        - Name: !Ref ContainerNameDBServer
+          #Cpu: !Ref DBServerContainerCpu
+          Image: !Ref ImageUrlDBServer
+          #Memory: !Ref DBServerContainerMemory
+          PortMappings:
+            -
+              ContainerPort: !Ref ContainerPortDBServer
+              #HostPort: 3306
+              Protocol: tcp
+          Environment:
+            - Name: MYSQL_ROOT_PASSWORD
+              Value: !Ref MysqlRootPassword
+            - Name: MYSQL_DATABASE
+              Value: !Ref MysqlDatabase
+            - Name: MYSQL_USER
+              Value: !Ref MysqlUser
+            - Name: MYSQL_PASSWORD
+              Value: !Ref MysqlPassword
+
+  service:
+    Type: AWS::ECS::Service
+    DependsOn: taskdefinition
+    Properties:
+      ServiceName: !Sub ${EnvironmentName}-service
+      Cluster: !Ref 'ECSCluster'
+      LaunchType: FARGATE
+      # DeploymentConfiguration:
+      #   MaximumPercent: 200
+      #   MinimumHealthyPercent: 100
+      DesiredCount: 2
+      HealthCheckGracePeriodSeconds: 120
+      TaskDefinition: !Ref 'taskdefinition'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          # change to DISABLED if you're using private subnets that have access to a NAT gateway
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups:
+            - !Ref EcsSecurityGroup
+      LoadBalancers:
+        - ContainerName: !Ref ContainerNameWebServer
+          ContainerPort: 80
+          TargetGroupArn: !Ref 'TargetGroup'
