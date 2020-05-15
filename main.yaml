@@ -1,0 +1,247 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Main stack
+
+
+Parameters:
+  BucketName:
+    Description: The bucket url for TaskDefinitionStack templates
+    Type: String
+
+  ApplicationName:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
+
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    AllowedValues:
+      - dev
+      - test
+      - prod
+
+  VpcCIDR:
+    Description: Please enter the IP range     # optional
+    Type: String     # required
+    Default: 10.1.0.0/16
+
+  PublicSubnet1CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.1.0/24
+
+  PublicSubnet2CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.2.0/24
+
+  PrivateSubnet1CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.3.0/24
+
+  PrivateSubnet2CIDR:
+    Description: Please enter IP range     # optional
+    Type: String     # required
+    Default: 10.1.4.0/24
+
+  TargetType:
+    Description: Select a target type ip/instance for target groups
+    Type: String
+    AllowedValues:
+      - ip
+      - instance
+
+  TaskMemory:
+    Description: Please enter the IP range     # optional
+    Type: Number     # required
+
+  TaskCpu:
+    Description: Please enter the IP range     # optional
+    Type: Number     # required
+
+  # WebServerContainerMemory:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+  #
+  # DBServerContainerMemory:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+  #
+  # WebServerContainerCpu:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+  #
+  # DBServerContainerCpu:
+  #   Description: Please enter the IP range     # optional
+  #   Type: Number     # required
+
+  ContainerNameWebServer:
+    Type: String
+    Description: The name for web server container
+
+  ContainerNameDBServer:
+    Type: String
+    Description: The name for db server container
+
+  ImageUrlWebServer:
+    Type: String
+    Description: The url of a docker image that contains the application
+
+  ImageUrlDBServer:
+    Type: String
+    Description: The url of a docker image that contains the application
+
+  ContainerPortWebServer:
+    Type: Number
+    Description: The port for web server container
+
+  ContainerPortDBServer:
+    Type: Number
+    Description: The port for db server container
+
+  ApplicationDbHostNameVariable:
+    Type: String
+    Description: Environment variable Name for Database Host
+
+  ApplicationDbHostNameValue:
+    Type: String
+    Description: Environment variable value for Database Host
+
+  ApplicationDbUserVariable:
+    Type: String
+    Description: Environment variable Name for Database User
+
+  ApplicationDbUserValue:
+    Type: String
+    Description: Environment variable value for Database User
+
+  ApplicationDbPasswordVariable:
+    Type: String
+    Description: Environment variable Name for Password
+
+  ApplicationDbPasswordValue:
+    Type: String
+    Description: Environment variable value for Password
+
+  ApplicationDbNameVariable:
+    Type: String
+    Description: Environment variable Name for Database Name
+
+  ApplicationDbNameValue:
+    Type: String
+    Description: Environment variable value for Database Name
+
+  DBRootPasswordVariable:
+    Type: String
+    Description: Environment variable Name for Database Root Password
+
+  DBRootPasswordValue:
+    Type: String
+    Description: Environment variable value for Database Root Password
+
+  DBDatabaseNameVariable:
+    Type: String
+    Description: Environment variable Name for Database Name
+
+  DBDatabaseNameValue:
+    Type: String
+    Description: Environment variable value for Database Name
+
+
+  DBUserNameVariable:
+    Type: String
+    Description: Environment variable Name for Database User Name
+
+  DBUserNameValue:
+    Type: String
+    Description: Environment variable value for Database User Name
+
+  DBPasswordVariable:
+    Type: String
+    Description: Environment variable Name for Database Password
+
+  DBPasswordValue:
+    Type: String
+    Description: Environment variable value for Database Password
+
+
+Resources:
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${BucketName}/${EnvironmentName}/vpc.yaml
+      TimeoutInMinutes: '20'
+      Parameters:
+          EnvironmentName: !Ref EnvironmentName
+          VpcCIDR: !Ref VpcCIDR
+          PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
+          PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
+          PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+          PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+
+  ALBStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: VpcStack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${BucketName}/${EnvironmentName}/alb.yaml
+      TimeoutInMinutes: '20'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        TargetType: !Ref TargetType
+        VpcID: !GetAtt VpcStack.Outputs.VpcID
+        PublicSubnet1: !GetAtt VpcStack.Outputs.PublicSubnet1r
+        PublicSubnet2: !GetAtt VpcStack.Outputs.PublicSubnet2r
+        EcsSecurityGroup: !GetAtt VpcStack.Outputs.EcsSecurityGroup
+        ALBSecurityGroup: !GetAtt VpcStack.Outputs.ALBSecurityGroup
+
+  ECSClusterStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ALBStack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${BucketName}/${EnvironmentName}/ecscluster.yaml
+      TimeoutInMinutes: '5'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+
+  TaskDefinitionStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ECSClusterStack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${BucketName}/${EnvironmentName}/taskdefinition.yaml
+      TimeoutInMinutes: '5'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ApplicationName: !Ref ApplicationName
+        TaskMemory: !Ref TaskMemory
+        TaskCpu: !Ref TaskCpu
+        ContainerNameWebServer: !Ref ContainerNameWebServer
+        ContainerNameDBServer: !Ref ContainerNameDBServer
+        ImageUrlWebServer: !Ref ImageUrlWebServer
+        ImageUrlDBServer: !Ref ImageUrlDBServer
+        ContainerPortWebServer: !Ref ContainerPortWebServer
+        ContainerPortDBServer: !Ref ContainerPortDBServer
+        ApplicationDbHostNameVariable: !Ref ApplicationDbHostNameVariable
+        ApplicationDbHostNameValue: !Ref ApplicationDbHostNameValue
+        ApplicationDbUserVariable: !Ref ApplicationDbUserVariable
+        ApplicationDbUserValue: !Ref ApplicationDbUserValue
+        ApplicationDbPasswordVariable: !Ref ApplicationDbPasswordVariable
+        ApplicationDbPasswordValue: !Ref ApplicationDbPasswordValue
+        ApplicationDbNameVariable: !Ref ApplicationDbNameVariable
+        ApplicationDbNameValue: !Ref ApplicationDbNameValue
+        DBRootPasswordVariable: !Ref DBRootPasswordVariable
+        DBRootPasswordValue: !Ref DBRootPasswordValue
+        DBDatabaseNameVariable: !Ref DBDatabaseNameVariable
+        DBDatabaseNameValue: !Ref DBDatabaseNameValue
+        DBUserNameVariable: !Ref DBUserNameVariable
+        DBUserNameValue: !Ref DBUserNameValue
+        DBPasswordVariable: !Ref DBPasswordVariable
+        DBPasswordValue: !Ref DBPasswordValue
+        ECSCluster: !GetAtt ECSClusterStack.Outputs.EcsCluster
+        EcsSecurityGroup: !GetAtt VpcStack.Outputs.EcsSecurityGroup
+        PrivateSubnet1: !GetAtt VpcStack.Outputs.PrivateSubnet1r
+        PrivateSubnet2: !GetAtt VpcStack.Outputs.PrivateSubnet2r
+        TargetGroup:  !GetAtt ALBStack.Outputs.TargetGroup
