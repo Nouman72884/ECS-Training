@@ -6,24 +6,13 @@ Description: >
 
 
 Parameters:
-  TemplateS3BucketVpcStack:
-    Description: The bucket url for VpcStack templates
-    Type: String
-
-
-  TemplateS3BucketALBStack:
-    Description: The bucket url for ALBStack templates
-    Type: String
-
-
-  TemplateS3BucketECSStack:
-    Description: The bucket url for ECSStack templates
-    Type: String
-
-
-  TemplateS3BucketTaskDefinitionStack:
+  BucketName:
     Description: The bucket url for TaskDefinitionStack templates
     Type: String
+
+  ApplicationName:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
 
 
   EnvironmentName:
@@ -114,47 +103,77 @@ Parameters:
     Type: Number
     Description: The port for db server container
 
-  WordpressDbHost:
+  ApplicationDbHostNameVariable:
     Type: String
-    Description: Environment variable value for WORDPRESS_DB_HOST
+    Description: Environment variable Name for Database Host
 
-  WordpressDbUser:
+  ApplicationDbHostNameValue:
     Type: String
-    Description: Environment variable value for WORDPRESS_DB_USER
+    Description: Environment variable value for Database Host
 
-  WordpressDbPassword:
+  ApplicationDbUserVariable:
     Type: String
-    NoEcho: 'true'
-    Description: Environment variable value for WORDPRESS_DB_PASSWORD
+    Description: Environment variable Name for Database User
 
-  WordpressDbName:
+  ApplicationDbUserValue:
     Type: String
-    Description: Environment variable value for WORDPRESS_DB_NAME
+    Description: Environment variable value for Database User
 
-  MysqlRootPassword:
+  ApplicationDbPasswordVariable:
     Type: String
-    NoEcho: 'true'
-    Description: Environment variable value for MYSQL_ROOT_PASSWORD
+    Description: Environment variable Name for Password
 
-  MysqlDatabase:
+  ApplicationDbPasswordValue:
     Type: String
-    Description: Environment variable value for MYSQL_DATABASE
+    Description: Environment variable value for Password
 
-  MysqlUser:
+  ApplicationDbNameVariable:
     Type: String
-    Description: Environment variable value for MYSQL_USER
+    Description: Environment variable Name for Database Name
 
-  MysqlPassword:
+  ApplicationDbNameValue:
     Type: String
-    NoEcho: 'true'
-    Description: Environment variable value for MYSQL_PASSWORD
+    Description: Environment variable value for Database Name
+
+  DBRootPasswordVariable:
+    Type: String
+    Description: Environment variable Name for Database Root Password
+
+  DBRootPasswordValue:
+    Type: String
+    Description: Environment variable value for Database Root Password
+
+  DBDatabaseNameVariable:
+    Type: String
+    Description: Environment variable Name for Database Name
+
+  DBDatabaseNameValue:
+    Type: String
+    Description: Environment variable value for Database Name
+
+
+  DBUserNameVariable:
+    Type: String
+    Description: Environment variable Name for Database User Name
+
+  DBUserNameValue:
+    Type: String
+    Description: Environment variable value for Database User Name
+
+  DBPasswordVariable:
+    Type: String
+    Description: Environment variable Name for Database Password
+
+  DBPasswordValue:
+    Type: String
+    Description: Environment variable value for Database Password
 
 
 Resources:
   VpcStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Ref TemplateS3BucketVpcStack
+      TemplateURL: !Sub https://s3.amazonaws.com/${BucketName}/${EnvironmentName}/vpc.yaml
       TimeoutInMinutes: '20'
       Parameters:
           EnvironmentName: !Ref EnvironmentName
@@ -168,7 +187,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: VpcStack
     Properties:
-      TemplateURL: !Ref TemplateS3BucketALBStack
+      TemplateURL: !Sub https://s3.amazonaws.com/${BucketName}/${EnvironmentName}/alb.yaml
       TimeoutInMinutes: '20'
       Parameters:
         EnvironmentName: !Ref EnvironmentName
@@ -183,7 +202,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: ALBStack
     Properties:
-      TemplateURL: !Ref TemplateS3BucketECSStack
+      TemplateURL: !Sub https://s3.amazonaws.com/${BucketName}/${EnvironmentName}/ecscluster.yaml
       TimeoutInMinutes: '5'
       Parameters:
         EnvironmentName: !Ref EnvironmentName
@@ -192,10 +211,11 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: ECSClusterStack
     Properties:
-      TemplateURL: !Ref TemplateS3BucketTaskDefinitionStack
+      TemplateURL: !Sub https://s3.amazonaws.com/${BucketName}/${EnvironmentName}/taskdefinition.yaml
       TimeoutInMinutes: '5'
       Parameters:
         EnvironmentName: !Ref EnvironmentName
+        ApplicationName: !Ref ApplicationName
         TaskMemory: !Ref TaskMemory
         TaskCpu: !Ref TaskCpu
         ContainerNameWebServer: !Ref ContainerNameWebServer
@@ -204,14 +224,22 @@ Resources:
         ImageUrlDBServer: !Ref ImageUrlDBServer
         ContainerPortWebServer: !Ref ContainerPortWebServer
         ContainerPortDBServer: !Ref ContainerPortDBServer
-        WordpressDbHost: !Ref WordpressDbHost
-        WordpressDbUser: !Ref WordpressDbUser
-        WordpressDbPassword: !Ref WordpressDbPassword
-        WordpressDbName: !Ref WordpressDbName
-        MysqlRootPassword: !Ref MysqlRootPassword
-        MysqlDatabase: !Ref MysqlDatabase
-        MysqlUser: !Ref MysqlUser
-        MysqlPassword: !Ref MysqlPassword
+        ApplicationDbHostNameVariable: !Ref ApplicationDbHostNameVariable
+        ApplicationDbHostNameValue: !Ref ApplicationDbHostNameValue
+        ApplicationDbUserVariable: !Ref ApplicationDbUserVariable
+        ApplicationDbUserValue: !Ref ApplicationDbUserValue
+        ApplicationDbPasswordVariable: !Ref ApplicationDbPasswordVariable
+        ApplicationDbPasswordValue: !Ref ApplicationDbPasswordValue
+        ApplicationDbNameVariable: !Ref ApplicationDbNameVariable
+        ApplicationDbNameValue: !Ref ApplicationDbNameValue
+        DBRootPasswordVariable: !Ref DBRootPasswordVariable
+        DBRootPasswordValue: !Ref DBRootPasswordValue
+        DBDatabaseNameVariable: !Ref DBDatabaseNameVariable
+        DBDatabaseNameValue: !Ref DBDatabaseNameValue
+        DBUserNameVariable: !Ref DBUserNameVariable
+        DBUserNameValue: !Ref DBUserNameValue
+        DBPasswordVariable: !Ref DBPasswordVariable
+        DBPasswordValue: !Ref DBPasswordValue
         ECSCluster: !GetAtt ECSClusterStack.Outputs.EcsCluster
         EcsSecurityGroup: !GetAtt VpcStack.Outputs.EcsSecurityGroup
         PrivateSubnet1: !GetAtt VpcStack.Outputs.PrivateSubnet1r

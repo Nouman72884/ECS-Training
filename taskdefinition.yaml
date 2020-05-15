@@ -14,6 +14,10 @@ Parameters:
       - test
       - prod
 
+  ApplicationName:
+      Description: Please enter the IP range     # optional
+      Type: String     # required
+
   PrivateSubnet1:
       Description: Please enter the IP range     # optional
       Type: String     # required
@@ -23,15 +27,15 @@ Parameters:
       Type: String     # required
 
   TargetGroup:
-      Description: Please enter the IP range     # optional
+      Description: Name of target group     # optional
       Type: String     # required
 
   EcsSecurityGroup:
-      Description: Please enter the IP range     # optional
+      Description: Name of  Security group     # optional
       Type: String     # required
 
   ECSCluster:
-      Description: Please enter the IP range     # optional
+      Description: Name of ECS cluster    # optional
       Type: String     # required
 
   TaskMemory:
@@ -39,7 +43,7 @@ Parameters:
     Type: Number     # required
 
   TaskCpu:
-    Description: enter cpu for task     # optional
+    Description: enter cpu units for task     # optional
     Type: Number     # required
 
   # WebServerContainerMemory:
@@ -82,37 +86,70 @@ Parameters:
     Type: Number
     Description: The port for db server container
 
-  WordpressDbHost:
+  ApplicationDbHostNameVariable:
     Type: String
-    Description: Environment variable value for WORDPRESS_DB_HOST
+    Description: Environment variable Name for Database Host
 
-  WordpressDbUser:
+  ApplicationDbHostNameValue:
     Type: String
-    Description: Environment variable value for WORDPRESS_DB_USER
+    Description: Environment variable value for Database Host
 
-  WordpressDbPassword:
+  ApplicationDbUserVariable:
     Type: String
-    Description: Environment variable value for WORDPRESS_DB_PASSWORD
+    Description: Environment variable Name for Database User
 
-  WordpressDbName:
+  ApplicationDbUserValue:
     Type: String
-    Description: Environment variable value for WORDPRESS_DB_NAME
+    Description: Environment variable value for Database User
 
-  MysqlRootPassword:
+  ApplicationDbPasswordVariable:
     Type: String
-    Description: Environment variable value for MYSQL_ROOT_PASSWORD
+    Description: Environment variable Name for Password
 
-  MysqlDatabase:
+  ApplicationDbPasswordValue:
     Type: String
-    Description: Environment variable value for MYSQL_DATABASE
+    Description: Environment variable value for Password
 
-  MysqlUser:
+  ApplicationDbNameVariable:
     Type: String
-    Description: Environment variable value for MYSQL_USER
+    Description: Environment variable Name for Database Name
 
-  MysqlPassword:
+  ApplicationDbNameValue:
     Type: String
-    Description: Environment variable value for MYSQL_PASSWORD
+    Description: Environment variable value for Database Name
+
+  DBRootPasswordVariable:
+    Type: String
+    Description: Environment variable Name for Database Root Password
+
+  DBRootPasswordValue:
+    Type: String
+    Description: Environment variable value for Database Root Password
+
+  DBDatabaseNameVariable:
+    Type: String
+    Description: Environment variable Name for Database Name
+
+  DBDatabaseNameValue:
+    Type: String
+    Description: Environment variable value for Database Name
+
+
+  DBUserNameVariable:
+    Type: String
+    Description: Environment variable Name for Database User Name
+
+  DBUserNameValue:
+    Type: String
+    Description: Environment variable value for Database User Name
+
+  DBPasswordVariable:
+    Type: String
+    Description: Environment variable Name for Database Password
+
+  DBPasswordValue:
+    Type: String
+    Description: Environment variable value for Database Password
 
 
 
@@ -123,7 +160,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName:
-        Fn::Sub: ECSRole
+        Fn::Sub: ${EnvironmentName}-ECSRole
       AssumeRolePolicyDocument:
         Statement:
           - Action:
@@ -149,7 +186,7 @@ Resources:
     Properties:
       RequiresCompatibilities:
         - FARGATE
-      Family: !Sub ${EnvironmentName}-AppTask
+      Family: !Sub ${EnvironmentName}-${ApplicationName}-Task
       Cpu: !Ref TaskCpu
       Memory: !Ref TaskMemory
       NetworkMode: awsvpc     # optional
@@ -172,14 +209,14 @@ Resources:
               #HostPort: 80
               Protocol: tcp
           Environment:
-            - Name: WORDPRESS_DB_HOST
-              Value: !Ref WordpressDbHost
-            - Name: WORDPRESS_DB_USER
-              Value: !Ref WordpressDbUser
-            - Name: WORDPRESS_DB_PASSWORD
-              Value: !Ref WordpressDbPassword
-            - Name: WORDPRESS_DB_NAME
-              Value: !Ref WordpressDbName
+            - Name: !Ref ApplicationDbHostNameVariable
+              Value: !Ref ApplicationDbHostNameValue
+            - Name: !Ref ApplicationDbUserVariable
+              Value: !Ref ApplicationDbUserValue
+            - Name: !Ref ApplicationDbPasswordVariable
+              Value: !Ref ApplicationDbPasswordValue
+            - Name: !Ref ApplicationDbNameVariable
+              Value: !Ref ApplicationDbNameValue
 
         - Name: !Ref ContainerNameDBServer
           #Cpu: !Ref DBServerContainerCpu
@@ -191,20 +228,20 @@ Resources:
               #HostPort: 3306
               Protocol: tcp
           Environment:
-            - Name: MYSQL_ROOT_PASSWORD
-              Value: !Ref MysqlRootPassword
-            - Name: MYSQL_DATABASE
-              Value: !Ref MysqlDatabase
-            - Name: MYSQL_USER
-              Value: !Ref MysqlUser
-            - Name: MYSQL_PASSWORD
-              Value: !Ref MysqlPassword
+            - Name: !Ref DBRootPasswordVariable
+              Value: !Ref DBRootPasswordValue
+            - Name: !Ref DBDatabaseNameVariable
+              Value: !Ref DBDatabaseNameValue
+            - Name: !Ref DBUserNameVariable
+              Value: !Ref DBUserNameValue
+            - Name: !Ref DBPasswordVariable
+              Value: !Ref DBPasswordValue
 
   service:
     Type: AWS::ECS::Service
     DependsOn: taskdefinition
     Properties:
-      ServiceName: !Sub ${EnvironmentName}-service
+      ServiceName: !Sub ${EnvironmentName}-${ApplicationName}-service
       Cluster: !Ref 'ECSCluster'
       LaunchType: FARGATE
       # DeploymentConfiguration:

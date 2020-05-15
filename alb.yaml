@@ -34,11 +34,11 @@ Parameters:
       Type: String     # required
 
   EcsSecurityGroup:
-      Description: Please enter the IP range     # optional
+      Description: Name of Security group     # optional
       Type: String     # required
 
   ALBSecurityGroup:
-      Description: Please enter the IP range     # optional
+      Description: Name of Security group      # optional
       Type: String     # required
 
 Resources:
